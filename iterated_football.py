@@ -1,3 +1,5 @@
+import random
+
 class Team:
     score = 0
 
@@ -116,7 +118,7 @@ def play_strat(offense, defense, strat, nash_present):
     # Check if shift in strategy is needed:
     nash = isNash(offense)
 
-    #Exiting Nash. Def still leaning towards previously-Nash play, but not considerate of other option.
+    #Exiting Nash. Def still leaning towards previously-Nash play, but now considerate of other play.
     if len(nash) == 0 and nash_present:
         # Previous def strat was defend pass
         if strat[1] == 0:
@@ -127,19 +129,31 @@ def play_strat(offense, defense, strat, nash_present):
     
     #Was in neutral, still in neutral. Shift strategy profile by 5 percent
     elif len(nash) == 0 and not nash_present:
-        if strat[1] == 0:
-            orig_def_strat_profile = defense.def_strat_profile
-            defense.def_strat_profile = [orig_def_strat_profile[0] + 0.05, orig_def_strat_profile[1] - 0.05]
+        if defense.def_strat_profile[0] != 1.0 and defense.def_strat_profile[1] != 1.0:
+            if strat[1] == 0:
+                defense.def_strat_profile = [round(defense.def_strat_profile[0] + 0.05, 2), round(defense.def_strat_profile[1] - 0.05, 2)]
+            else:
+                defense.def_strat_profile = [round(defense.def_strat_profile[0] - 0.05, 2), round(defense.def_strat_profile[1] + 0.05, 2)]
         else:
-            orig_def_strat_profile = defense.def_strat_profile
-            defense.def_strat_profile = [orig_def_strat_profile[0] - 0.05, orig_def_strat_profile[1] + 0.05]
+
+            #Strat chooses defend-run, and profile is 100% defend-run anyways
+            if (strat[0] == 0 and defense.def_strat_profile[0] == 1.0) or (strat[0] == 1 and defense.def_strat_profile[1] == 1.0):
+                pass
+            else:
+                if strat[1] == 0:
+                    defense.def_strat_profile = [0.05, 0.95]
+                else: 
+                    defense.def_strat_profile = [0.95, 0.05]
+
     
-    #Entering/Still in Nash. Shift strategy fully to Nash play
+    #Entering/Remaining in Nash. Shift strategy fully to Nash play
     else:
         if nash[0][1] == 0:
             defense.def_strat_profile = [1.0, 0.0]
         else:
             defense.def_strat_profile = [0.0, 1.0]
+    
+    return
     
     
 
@@ -162,50 +176,67 @@ team2 = Team(init_outcomes, universal_extreme_cases)
 current_offense = team1
 current_defense = team2
 
-current_offense.printUtilities(series_down, current_game, current_defense)
-
 while (current_game.overall_down <= current_game.num_downs):
     current_offense.printUtilities(series_down, current_game, current_defense)
     # Understand if Nash present. If so, play that.
     # while (series_down < 4):
+
+    #Check if there is a Nash value. If there is, play that.
     any_nash = isNash(current_offense)
     if len(any_nash) != 0:
         chosen_strat = any_nash[0]
-        # offense, defense, strat, nash_present
+        print("Strategy chosen is " + str(chosen_strat))
         play_strat(current_offense, current_defense, chosen_strat, True)
 
     #No Nash present
     else:
         #Observe which strat defense is leaning towards
-        #Leaning towards defend pass
         current_strat_prof = current_defense.def_strat_profile
+        
+        #Leaning towards defend pass
         if current_strat_prof[0] > current_strat_prof[1]:
             predicted_def_strat = 0
         
         #Leaning towards defend run
-        elif current_defense.def_strat_profile[0] < current_defense.def_strat_profile[1]:
+        elif current_strat_prof[0] < current_strat_prof[1]:
             predicted_def_strat = 1
+        
         #50/50
         else:
             predicted_def_strat = -1
         
         #Offense wants to 1) Play less-predicted strat, or 2) Play to make that strat less-predicted for more success.
         #To-do: Must implement defense's chances of selecting into their actual selection. Right now, only hard-coded to play perfectly for offense once threshold is met.
+
+        #If defense has a preference
         if predicted_def_strat != -1:
-            #If less-preferred strat is 40% or more, it is worth playing.
+
+            #If more-preferred strat is 60% or more, it is worth for offense to consider diverting.
             if current_strat_prof[predicted_def_strat] >= .60:
                 off_decision = bool(random.getrandbits(1))
-
+                print "off_decision is " + str(off_decision)
                 #If offense chooses to play against prediction
                 if off_decision:
                     chosen_strat = [1 - predicted_def_strat, predicted_def_strat]
                     print("Strategy chosen is " + str(chosen_strat))
                     play_strat(current_offense, current_defense, chosen_strat, False)
+
                 else:
                     chosen_strat = [predicted_def_strat, predicted_def_strat]
                     print("Strategy chosen is " + str(chosen_strat))
                     play_strat(current_offense, current_defense, chosen_strat, False)
-        
+            
+            #Has preference, but not a strong one yet. Work towards running play.
+            else:
+                if current_offense.utilities[0][1][0] > current_offense.utilities[1][0][0]:
+                    #Work towards running play, in order to play pass later.
+                    chosen_strat = [1, 1]
+                    print("Strategy chosen is " + str(chosen_strat))
+                    play_strat(current_offense, current_defense, chosen_strat, False)
+                elif current_offense.utilities[0][1][0] < current_offense.utilities[1][0][0]:
+                    chosen_strat = [0, 0]
+                    print("Strategy chosen is " + str(chosen_strat))
+                    play_strat(current_offense, current_defense, chosen_strat, False)
         #Defense strat is 50/50 so build reputation towards highest utility.
         else:
             if current_offense.utilities[0][1][0] > current_offense.utilities[1][0][0]:
