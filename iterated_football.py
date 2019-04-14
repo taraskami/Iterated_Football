@@ -6,10 +6,11 @@ class Team:
         self.extreme_cases = extreme_cases
         self.def_strat_profile = [.5, .5]
 
-    def printUtilities(self, series_down, game):
+    def printUtilities(self, series_down, game, defense):
         print "Down in series is %d. There are %d downs left in the game." % (series_down, game.num_downs - game.overall_down)
         print "%d, %d | %d, %d" % (self.utilities[0][0][0], self.utilities[0][0][1], self.utilities[0][1][0], self.utilities[0][1][1])
         print "%d, %d | %d, %d" % (self.utilities[1][0][0], self.utilities[1][0][1], self.utilities[1][1][0], self.utilities[1][1][1])
+        print "Defense's strategy profile is " + str(defense.def_strat_profile)
         nash = isNash(self)
         if len(nash) != 0:
             nash_str = []
@@ -71,13 +72,22 @@ def isNash(offense):
     
     nash = [value for value in off_prefs if value in def_prefs]
     return nash
-    
+
+current_game = Game(50, 4)
+
+series_down = 1
+series_yardage = 10
+overall_yardage = 80 #Assume that team starts at own 20-yd line, which is typical.
+
 def create_utilities(utility_pairs):
     pass_outcomes = [utility_pairs[0], utility_pairs[1]]
     run_outcomes = [utility_pairs[2], utility_pairs[3]]
     return [pass_outcomes, run_outcomes]
 
 def play_strat(offense, defense, strat, nash_present):
+    global series_yardage
+    global overall_yardage
+    global series_down
     movement = offense.utilities[strat[0]][strat[1]][0]
     series_yardage -= movement
     overall_yardage -= movement
@@ -85,7 +95,7 @@ def play_strat(offense, defense, strat, nash_present):
     current_game.overall_down += 1
 
     # Loop thru each offense strategy and either lessen utility if that was the one chosen, or increase otherwise.
-    for i in range[0:1]:
+    for i in range(0, 2):
 
         #chosen strategy
         if i == strat[0]:
@@ -147,57 +157,77 @@ init_utilities = [ [3, -3], [12, -12], [14, -14], [7, -7] ]
 init_outcomes = create_utilities(init_utilities)
 team2 = Team(init_outcomes, universal_extreme_cases)
 
-current_game = Game(50, 4)
 
-series_down = 1
-series_yardage = 10
-overall_yardage = 80 #Assume that team starts at own 20-yd line, which is typical.
 
 current_offense = team1
 current_defense = team2
 
-current_offense.printUtilities(series_down, current_game)
+current_offense.printUtilities(series_down, current_game, current_defense)
 
-# while (current_game.overall_down <= current_game.num_downs):
-current_offense.printUtilities(series_down, current_game)
-# Understand if Nash present. If so, play that.
-# while (series_down < 4):
-any_nash = isNash(current_offense)
-if len(any_nash) != 0:
-    chosen_strat = any_nash[0]
-    # offense, defense, strat, nash_present
-    play_strat(current_offense, current_defense, chosen_strat, True)
-    series_down += 1
-    current_game.overall_down += 1
+while (current_game.overall_down <= current_game.num_downs):
+    current_offense.printUtilities(series_down, current_game, current_defense)
+    # Understand if Nash present. If so, play that.
+    # while (series_down < 4):
+    any_nash = isNash(current_offense)
+    if len(any_nash) != 0:
+        chosen_strat = any_nash[0]
+        # offense, defense, strat, nash_present
+        play_strat(current_offense, current_defense, chosen_strat, True)
 
-#No Nash present
-else:
-    #Observe which strat defense is leaning towards
-
-    #Leaning towards defend pass
-    current_strat_prof = current_defense.def_strat_profile
-    if current_strat_prof[0] > current_strat_prof[1]:
-        predicted_def_strat = 0
-    
-    #Leaning towards defend run
-    elif current_defense.def_strat_profile[0] < current_defense.def_strat_profile[1]:
-        predicted_def_strat = 1
-    
-    #50/50
+    #No Nash present
     else:
-        predicted_def_strat = -1
-    
-    #Offense wants to 1) Play less-predicted strat, or 2) Play to make that strat less-predicted for more success.
-    if predicted_def_strat != -1:
-        #If less-preferred strat is 35% or more, it is worth playing.
-        if current_strat_prof[predicted_def_strat] >= .60:
-            off_decision = bool(random.getrandbits(1))
-
-            #If offense chooses to play against prediction
-            if off_decision:
-                chosen_strat = [1 - predicted_def_strat, predicted_def_strat]
-                play_strat(current_offense, current_defense, chosen_strat, False)
-                series_down += 1
-                current_game.overall_down += 1
-    else:
+        #Observe which strat defense is leaning towards
+        #Leaning towards defend pass
+        current_strat_prof = current_defense.def_strat_profile
+        if current_strat_prof[0] > current_strat_prof[1]:
+            predicted_def_strat = 0
         
+        #Leaning towards defend run
+        elif current_defense.def_strat_profile[0] < current_defense.def_strat_profile[1]:
+            predicted_def_strat = 1
+        #50/50
+        else:
+            predicted_def_strat = -1
+        
+        #Offense wants to 1) Play less-predicted strat, or 2) Play to make that strat less-predicted for more success.
+        #To-do: Must implement defense's chances of selecting into their actual selection. Right now, only hard-coded to play perfectly for offense once threshold is met.
+        if predicted_def_strat != -1:
+            #If less-preferred strat is 40% or more, it is worth playing.
+            if current_strat_prof[predicted_def_strat] >= .60:
+                off_decision = bool(random.getrandbits(1))
+
+                #If offense chooses to play against prediction
+                if off_decision:
+                    chosen_strat = [1 - predicted_def_strat, predicted_def_strat]
+                    print("Strategy chosen is " + str(chosen_strat))
+                    play_strat(current_offense, current_defense, chosen_strat, False)
+                else:
+                    chosen_strat = [predicted_def_strat, predicted_def_strat]
+                    print("Strategy chosen is " + str(chosen_strat))
+                    play_strat(current_offense, current_defense, chosen_strat, False)
+        
+        #Defense strat is 50/50 so build reputation towards highest utility.
+        else:
+            if current_offense.utilities[0][1][0] > current_offense.utilities[1][0][0]:
+                #Work towards running play, in order to play pass later.
+                chosen_strat = [1, 1]
+                print("Strategy chosen is " + str(chosen_strat))
+                play_strat(current_offense, current_defense, chosen_strat, False)
+            
+            elif current_offense.utilities[0][1][0] < current_offense.utilities[1][0][0]:
+                chosen_strat = [0, 0]
+                print("Strategy chosen is " + str(chosen_strat))
+                play_strat(current_offense, current_defense, chosen_strat, False)
+            
+            else:
+                #A true 50/50.
+                off_decision = bool(random.getrandbits(1))
+                
+                if off_decision:
+                    chosen_strat = [0, 0]
+                else:
+                    chosen_strat = [1, 1]
+                
+                play_strat(current_offense, current_defense, chosen_strat, False)
+
+current_offense.printUtilities(series_down, current_game, current_defense)
